@@ -2,6 +2,7 @@
 
 #include <sys/types.h>
 
+#include <mutex>
 #include <unordered_map>
 
 #include <c10d/Store.hpp>
@@ -31,6 +32,10 @@ class FileStore : public Store {
  protected:
   int64_t addHelper(const std::string& key, int64_t i);
 
+  bool cacheEntryFound(const std::string& regKey);
+  std::vector<uint8_t> cacheEntry(const std::string& regKey);
+  void insertCache(const std::string& regKey, std::vector<uint8_t>&& value);
+
   std::string path_;
   off_t pos_;
 
@@ -38,6 +43,7 @@ class FileStore : public Store {
   const std::string cleanupKey_;
   const std::string regularPrefix_;
 
+  std::mutex cacheLock_;
   std::unordered_map<std::string, std::vector<uint8_t>> cache_;
 };
 
