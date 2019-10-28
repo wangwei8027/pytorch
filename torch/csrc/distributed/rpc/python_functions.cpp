@@ -30,6 +30,7 @@ std::shared_ptr<Operator> matchBuiltinOp(
     const py::kwargs& kwargs,
     Stack& stack) {
   Symbol symbol = Symbol::fromQualString(opName);
+
   if (symbol.is_aten()) {
     for (const auto& op : torch::jit::getAllOperatorsFor(symbol)) {
       try {
@@ -37,7 +38,6 @@ std::shared_ptr<Operator> matchBuiltinOp(
         // ``createStackForSchema`` to avoid throwing an error.
         stack = torch::jit::createStackForSchema(
             op->schema(), args, kwargs, c10::nullopt);
-
       } catch (std::runtime_error& e) {
         VLOG(1) << "Couldn't match schema: " << op->schema()
                 << " to args: " << args << " and kwargs: " << kwargs
@@ -178,13 +178,14 @@ PyRRef pyRemotePythonUdf(
       ctx.getWorkerId() != dst.id_,
       "Does not support creating RRef on self yet.");
   auto userRRef = ctx.createUserRRef<py::object>(dst.id_);
-  auto fm = agent.send(
-      dst,
-      PythonRemoteCall(
-          SerializedPyObj(std::move(pickledPythonUDF), std::move(tensors)),
-          userRRef->rrefId().toIValue(),
-          userRRef->forkId().toIValue())
-          .toMessage());
+
+  auto pythonRemoteCall = c10::guts::make_unique<PythonRemoteCall>(
+      SerializedPyObj(std::move(pickledPythonUDF), std::move(tensors)),
+      userRRef->rrefId().toIValue(),
+      userRRef->forkId().toIValue());
+
+  auto fm = sendMessageWithAutograd(
+      agent, dst, std::move(*pythonRemoteCall).toMessage());
 
   ctx.addPendingUser(userRRef->forkId(), userRRef);
   fm->addCallback(finishAcceptUserRRef);
