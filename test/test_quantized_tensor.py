@@ -2,6 +2,7 @@ import numpy as np
 
 import torch
 import io
+from copy import deepcopy
 
 from common_utils import TestCase, run_tests
 import tempfile
@@ -331,6 +332,19 @@ class TestQuantizedTensor(TestCase):
         f2 = torch.load(buf)
 
         self.assertEqual(f2.qscheme, torch.per_tensor_symmetric)
+
+    def test_copy(self):
+        # deep copy
+        scale, zero_point, dtype = 1.0, 2, torch.uint8
+        q_int = torch.randint(0, 100, [3, 5], dtype=dtype)
+        q = torch._make_per_tensor_quantized_tensor(q_int, scale=scale, zero_point=zero_point)
+        qc = deepcopy(q)
+        self.assertEqual(qc, q)
+        # copy_
+        qd = torch._empty_affine_quantized([3, 5], scale=scale, zero_point=zero_point, dtype=torch.quint8)
+        qd.copy_(q)
+        self.assertEqual(qd, q)
+
 
 if __name__ == "__main__":
     run_tests()
